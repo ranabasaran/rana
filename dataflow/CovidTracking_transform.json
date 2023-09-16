@@ -1,0 +1,74 @@
+{
+	"name": "CovidTracking_transform",
+	"properties": {
+		"description": "Update ISO 3166-2 code",
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "csv_dataset1",
+						"type": "DatasetReference"
+					},
+					"name": "sourceCSV"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "csv_sinkonly_dataset1",
+						"type": "DatasetReference"
+					},
+					"name": "SinkLatestCSV"
+				},
+				{
+					"dataset": {
+						"referenceName": "json_dataset1",
+						"type": "DatasetReference"
+					},
+					"name": "sinkLatestJsonl"
+				},
+				{
+					"dataset": {
+						"referenceName": "csv_sinkonly_dataset1",
+						"type": "DatasetReference"
+					},
+					"name": "SinkCSV"
+				},
+				{
+					"dataset": {
+						"referenceName": "json_dataset1",
+						"type": "DatasetReference"
+					},
+					"name": "sinkJsonl"
+				},
+				{
+					"dataset": {
+						"referenceName": "parquet_dataset1",
+						"type": "DatasetReference"
+					},
+					"name": "sinkLatestParquet"
+				},
+				{
+					"dataset": {
+						"referenceName": "parquet_dataset1",
+						"type": "DatasetReference"
+					},
+					"name": "sinkParquet"
+				}
+			],
+			"transformations": [
+				{
+					"name": "DropExtraColumns"
+				},
+				{
+					"name": "LoadDateAndISOCountry"
+				},
+				{
+					"name": "ReformatColumnNames"
+				}
+			],
+			"script": "parameters{\n\tfilename as string ('covid_tracking'),\n\trunid as string ('runtime_guid')\n}\nsource(output(\n\t\tdate as date 'yyyyMMdd',\n\t\tstate as string,\n\t\tpositive as integer,\n\t\tnegative as integer,\n\t\tpending as short,\n\t\thospitalizedCurrently as short,\n\t\thospitalizedCumulative as integer,\n\t\tinIcuCurrently as short,\n\t\tinIcuCumulative as short,\n\t\tonVentilatorCurrently as short,\n\t\tonVentilatorCumulative as short,\n\t\trecovered as integer,\n\t\tdataQualityGrade as string,\n\t\tlastUpdateEt as timestamp 'MM/dd/yyyy HH:mm',\n\t\thash as string,\n\t\tdateChecked as string,\n\t\tdeath as short,\n\t\thospitalized as integer,\n\t\ttotal as integer,\n\t\ttotalTestResults as integer,\n\t\tposNeg as integer,\n\t\tfips as short,\n\t\tdeathIncrease as short,\n\t\thospitalizedIncrease as short,\n\t\tnegativeIncrease as integer,\n\t\tpositiveIncrease as short,\n\t\ttotalTestResultsIncrease as integer\n\t),\n\tallowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false,\n\trowUrlColumn: 'lineage') ~> sourceCSV\nReformatColumnNames select(mapColumn(\n\t\tdate,\n\t\tstate,\n\t\tpositive,\n\t\tnegative,\n\t\tpending,\n\t\thospitalized_currently = hospitalizedcurrently,\n\t\thospitalized_cumulative = hospitalizedcumulative,\n\t\tin_icu_currently = inicucurrently,\n\t\tin_icu_cumulative = inicucumulative,\n\t\ton_ventilator_currently = onventilatorcurrently,\n\t\ton_ventilator_cumulative = onventilatorcumulative,\n\t\trecovered,\n\t\tdata_quality_grade = dataqualitygrade,\n\t\tlast_update_et = lastupdateet,\n\t\thash,\n\t\tdate_checked = datechecked,\n\t\tdeath,\n\t\thospitalized,\n\t\ttotal,\n\t\ttotal_test_results = totaltestresults,\n\t\tpos_neg = posneg,\n\t\tfips,\n\t\tdeath_increase = deathincrease,\n\t\thospitalized_increase = hospitalizedincrease,\n\t\tnegative_increase = negativeincrease,\n\t\tpositive_increase = positiveincrease,\n\t\ttotal_test_results_increase = totaltestresultsincrease,\n\t\tload_time,\n\t\tiso_country\n\t),\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> DropExtraColumns\nsourceCSV derive(load_time = currentUTC('yyyy-MM-dd'),\n\t\tiso_country = 'US') ~> LoadDateAndISOCountry\nLoadDateAndISOCountry select(mapColumn(\n\t\teach(patternMatch(`.*`),\n\t\t\tregexReplace(lower($$),' ','_') = $$)\n\t),\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> ReformatColumnNames\nDropExtraColumns sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tpartitionFileNames:[(concat($filename, '.csv'))],\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true,\n\tpartitionBy('hash', 1)) ~> SinkLatestCSV\nDropExtraColumns sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tpartitionFileNames:[(concat($filename, '.jsonl'))],\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> sinkLatestJsonl\nDropExtraColumns sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tpartitionFileNames:[(concat($filename,'_', $runid,'.csv'))],\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true,\n\tpartitionBy('hash', 1)) ~> SinkCSV\nDropExtraColumns sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tpartitionFileNames:[(concat($filename,'_', $runid,'.jsonl'))],\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true,\n\tpartitionBy('hash', 1)) ~> sinkJsonl\nDropExtraColumns sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tformat: 'parquet',\n\tpartitionFileNames:[(concat($filename, '.parquet'))],\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true,\n\tpartitionBy('hash', 1)) ~> sinkLatestParquet\nDropExtraColumns sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tformat: 'parquet',\n\tpartitionFileNames:[(concat($filename,'_', $runid,'.parquet'))],\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true,\n\tpartitionBy('hash', 1)) ~> sinkParquet"
+		}
+	}
+}
