@@ -1,0 +1,9 @@
+{
+	"name": "covidctrlproject-df",
+	"location": "eastus",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "053a0fb3-2dd9-40f1-87fd-9f018f64889f",
+		"tenantId": "81ac3fcb-0e34-42f5-be8e-7b8d22860e1b"
+	}
+}
